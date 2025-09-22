@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Flor</title>
+<style>
+  html, body {
+    height: 100%;
+    margin: 0;
+    background: #000;
+    overflow: hidden;
+    font-family: system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, 'Helvetica Neue', Arial, 'Noto Sans';
+  }
+  .hint {
+    position: fixed;
+    bottom: 22px;
+    left: 50%;
+    transform: translateX(-50%);
+    color: #ffd776;
+    letter-spacing: .5px;
+    opacity: .9;
+    font-size: 14px;
+    user-select: none;
+    text-shadow: 0 0 6px rgba(255, 197, 0, .5);
+  }
+  .dedicatoria {
+    position: fixed;
+    top: 12%;
+    left: 50%;
+    transform: translateX(-50%);
+    color: #ffd776;
+    font-size: 30px;
+    font-weight: bold;
+    letter-spacing: 1px;
+    text-shadow: 0 0 10px rgba(255,215,118,0.8),
+                 0 0 20px rgba(255,200,80,0.6),
+                 0 0 30px rgba(255,180,60,0.5);
+    pointer-events: none;
+  }
+  .mensaje {
+    position: fixed;
+    top: 20%;
+    left: 50%;
+    transform: translateX(-50%);
+    color: #ffd776;
+    font-size: 20px;
+    line-height: 1.4;
+    letter-spacing: .4px;
+    text-align: center;
+    max-width: min(92vw, 720px);
+    opacity: 0;
+    pointer-events: none;
+  }
+  .mensaje.show {
+    animation: fadeUp .9s ease-out forwards;
+    text-shadow: 0 0 8px rgba(255,210,90,.6);
+  }
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translate(-50%, 8px); }
+    to   { opacity: 1; transform: translate(-50%, 0); }
+  }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+
+
+<div class="dedicatoria">Para Leidy 🌸</div>
+
+
+<div id="mensaje" class="mensaje">
+  Toma tu girasol amarillo 🌻<br/>
+  A ver si este te gusta más que el video.
+</div>
+
+<div class="hint">toca la pantalla oe</div>
+
+<script>
+(() => {
+  const canvas = document.getElementById('c');
+  const ctx = canvas.getContext('2d');
+  const msgEl = document.getElementById('mensaje');
+  const DPR = Math.max(1, Math.min(2, window.devicePixelRatio || 1));
+  let W, H, CX, CY, start, animId = 0, messageShown = false;
+
+  const palette = {
+    petalStroke: 'rgba(255,215,118,0.65)',
+    petalFill: 'rgba(255,215,118,0.10)',
+    glow: 'rgba(255,198,40,0.18)',
+    center: '#0b0b0b',
+    centerGlow: 'rgba(255, 70, 20, 0.35)',
+    stem: '#2ba24c',
+    leaf: '#2ba24c'
+  };
+
+  function resize() {
+    W = Math.floor(window.innerWidth);
+    H = Math.floor(window.innerHeight);
+    canvas.width = W * DPR;
+    canvas.height = H * DPR;
+    canvas.style.width = W + 'px';
+    canvas.style.height = H + 'px';
+    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+    CX = W * 0.5;
+    CY = H * 0.63;
+  }
+  window.addEventListener('resize', resize, { passive: true });
+  resize();
+
+  const petalsTotal = 18;
+  const ringsPerPetal = 14;
+  const petalLenBase = () => Math.min(W, H) * 0.22;
+  const petalWidth = () => Math.min(W, H) * 0.12;
+  const centerR = () => Math.min(W, H) * 0.060;
+  const stemLen = () => Math.min(W, H) * 0.33;
+
+  function drawStem(progress) {
+    ctx.save();
+    ctx.translate(CX, CY);
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+
+    const SL = stemLen();
+    const stemWidth = Math.max(3, Math.min(7, Math.min(W, H) * 0.006));
+
+    const steps = 120;
+    ctx.beginPath();
+    for (let i = 0; i <= steps; i++) {
+      const t = i / steps;
+      if (t > progress) break;
+      const y = t * SL;
+      const x = Math.sin(t * 1.4) * 14;
+      if (i === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+    }
+    ctx.strokeStyle = palette.stem;
+    ctx.lineWidth = stemWidth;
+    ctx.stroke();
+
+    const leafSize = Math.min(W, H) * 0.045;
+    const leafOffsetY = SL * 0.55;
+    const leafOffsetY2 = SL * 0.78;
+    ctx.fillStyle = palette.leaf;
+
+    function drawLeaf(xDir, y0) {
+      ctx.beginPath();
+      ctx.moveTo(xDir * 6, y0);
+      ctx.quadraticCurveTo(xDir * (leafSize * 0.9), y0 - leafSize * 0.25,
+                           xDir * (leafSize * 0.75), y0 - leafSize * 0.75);
+      ctx.quadraticCurveTo(xDir * (leafSize * 0.25), y0 - leafSize * 0.5,
+                           xDir * 10, y0 - leafSize * 0.15);
+      ctx.closePath();
+      ctx.fill();
+    }
+    if (progress > 0.45) drawLeaf(-1, Math.min(leafOffsetY, SL * progress));
+    if (progress > 0.75) drawLeaf( 1, Math.min(leafOffsetY2, SL * progress));
+    ctx.restore();
+  }
+
+  function drawPetal(angle, pct, windPhase) {
+    const R = centerR();
+    const len = petalLenBase();
+    const w = petalWidth();
+    const sway = Math.sin(windPhase + angle * 2.0) * Math.min(8, w * 0.12);
+
+    ctx.save();
+    ctx.translate(CX, CY);
+    ctx.rotate(angle);
+
+    for (let i = 0; i < ringsPerPetal; i++) {
+      const t = (i + 1) / ringsPerPetal;
+      const local = Math.min(1, pct * 1.05);
+      const L = R + len * local * (0.6 + 0.4 * t);
+      const halfW = (w * (1 - 0.5 * t)) * (0.85 + 0.15 * Math.sin(i * 0.5));
+      const bulge = L * (0.18 + 0.08 * Math.cos(i * 0.6));
+      const tip = L + (0.4 + 0.2 * t) * 10;
+
+      ctx.beginPath();
+      ctx.moveTo(0, 0);
+      ctx.bezierCurveTo(-halfW + sway, R + bulge * 0.3,
+                        -halfW * 0.7 + sway, L - bulge,
+                        0 + sway, tip);
+      ctx.bezierCurveTo(halfW + sway, L - bulge,
+                        halfW * 0.6 + sway, R + bulge * 0.3,
+                        0, 0);
+
+      ctx.strokeStyle = palette.petalStroke;
+      ctx.lineWidth = Math.max(0.6, Math.min(1.2, Math.min(W, H) * 0.0012));
+      ctx.fillStyle = palette.petalFill;
+      ctx.fill();
+      ctx.stroke();
+    }
+
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.beginPath();
+    ctx.arc(sway, R + len * pct, Math.max(2, len * 0.035), 0, Math.PI * 2);
+    ctx.fillStyle = palette.glow;
+    ctx.fill();
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.restore();
+  }
+
+  function drawCenterPulse(time) {
+    const R = centerR();
+    ctx.save();
+    ctx.translate(CX, CY);
+    ctx.beginPath();
+    ctx.arc(0, 0, R * 0.96, 0, Math.PI * 2);
+    ctx.fillStyle = palette.center;
+    ctx.fill();
+
+    const pulse = (Math.sin(time * 0.0018) + 1) * 0.5;
+    const r = R * (1.05 + 0.08 * pulse);
+    ctx.beginPath();
+    ctx.arc(0, 0, r, 0, Math.PI * 2);
+    ctx.fillStyle = palette.centerGlow;
+    ctx.fill();
+    ctx.restore();
+  }
+
+  function easeOutCubic(t){ return 1 - Math.pow(1 - t, 3); }
+
+
+  const stemGrowDur = 1.2;
+  const petalAppearDur = 3.4;
+  const petalsStartAt = 0.8;
+  const messageDelay = 0.6; 
+  const messageAt = petalsStartAt + petalAppearDur + messageDelay;
+
+  function drawFrame(tNow) {
+    const t = (tNow - start) / 1000;
+    ctx.clearRect(0, 0, W, H);
+
+    const stemPct = Math.min(1, t / stemGrowDur);
+    drawStem(stemPct);
+
+    const baseAngle = -Math.PI / 2;
+    const windPhase = t * 0.9;
+
+    const perPetal = petalAppearDur / petalsTotal;
+    for (let i = 0; i < petalsTotal; i++) {
+      const a = baseAngle + i * (Math.PI * 2 / petalsTotal);
+      const tStart = petalsStartAt + i * perPetal;
+      const pct = easeOutCubic(Math.max(0, Math.min(1, (t - tStart) / perPetal)));
+      drawPetal(a, pct, windPhase);
+    }
+
+    drawCenterPulse(tNow);
+
+    
+    if (!messageShown && t >= messageAt) {
+      messageShown = true;
+      msgEl.classList.add('show');
+    }
+
+    animId = requestAnimationFrame(drawFrame);
+  }
+
+  function restart() {
+    if (animId) cancelAnimationFrame(animId);
+    start = performance.now();
+    messageShown = false;
+    msgEl.classList.remove('show'); 
+    animId = requestAnimationFrame(drawFrame);
+  }
+
+  window.addEventListener('pointerdown', restart);
+  restart();
+})();
+</script>
+</body>
+</html>
